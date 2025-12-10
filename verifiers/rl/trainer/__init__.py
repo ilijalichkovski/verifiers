@@ -3,6 +3,7 @@ import logging
 import torch._dynamo
 
 from .config import RLConfig
+from .text_feedback_trainer import TextFeedbackRLTrainer
 from .trainer import RLTrainer
 
 torch._dynamo.config.suppress_errors = True
@@ -30,6 +31,7 @@ def lora_defaults(**kwargs):
 __all__ = [
     "RLConfig",
     "RLTrainer",
+    "TextFeedbackRLTrainer",
     "GRPOTrainer",
     "GRPOConfig",
     "grpo_defaults",

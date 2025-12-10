@@ -22,7 +22,7 @@ import verifiers as vf
 import wandb
 from verifiers.rl.inference.client import VLLMClient
 from verifiers.rl.trainer.config import RLConfig
-from verifiers.rl.trainer.orchestrator import Orchestrator
+from verifiers.rl.trainer.orchestrator import Batch, Orchestrator
 from verifiers.rl.trainer.utils import (
     entropy_from_logits,
     finalize_stat_tracker,
@@ -125,6 +125,7 @@ class RLTrainer(Trainer):
         self._textual_logs = {
             "prompt": deque(),
             "completion": deque(),
+            "feedback": deque(),
             "rewards": defaultdict(lambda: deque()),
         }
 
@@ -232,10 +233,12 @@ class RLTrainer(Trainer):
                 mode="train",
                 batch_metrics=metrics_to_log,
             )
+            textual_feedbacks = self.get_textual_feedback(batch)
             self.log_rollouts(
                 prompts=batch.prompts,
                 completions=batch.completions,
                 rewards_dict=batch.rewards_dict,
+                textual_feedbacks=textual_feedbacks,
             )
 
         self.maybe_clear_cache()
@@ -411,6 +414,7 @@ class RLTrainer(Trainer):
                 list(self._textual_logs["completion"]),  # type: ignore[arg-type]
                 list(self._textual_logs["rewards"]["reward"]),  # type: ignore[arg-type]
                 self.state.global_step,
+                feedbacks=list(self._textual_logs["feedback"]),
             )
 
             if (
@@ -439,6 +443,7 @@ class RLTrainer(Trainer):
                     role_content_only(sanitize_tool_calls(messages_to_printable(c)))
                     for c in self._textual_logs["completion"]
                 ]
+                feedback_clean = [str(f) for f in self._textual_logs["feedback"]]
                 table = {
                     "step": [str(self.state.global_step)]
                     * len(self._textual_logs["prompt"]),
@@ -446,26 +451,35 @@ class RLTrainer(Trainer):
                     "completion": completions_clean,
                     **{k: list(v) for k, v in self._textual_logs["rewards"].items()},  # type: ignore[union-attr]
                 }
+                if feedback_clean:
+                    table["feedback"] = feedback_clean
                 df = pd.DataFrame(table)
                 wandb.log({"completions": wandb.Table(dataframe=df)})
 
             # clear after logging
             self._textual_logs["prompt"].clear()
             self._textual_logs["completion"].clear()
+            self._textual_logs["feedback"].clear()
             for key in self._textual_logs["rewards"]:
                 self._textual_logs["rewards"][key].clear()
+
+    def get_textual_feedback(self, batch: Batch) -> list[str] | None:
+        return None
 
     def log_rollouts(
         self,
         prompts: List[Messages],
         completions: List[Messages],
         rewards_dict: Dict[str, Any],
+        textual_feedbacks: list[str] | None = None,
     ) -> None:
         self._textual_logs["prompt"].extend(prompts)  # type: ignore[union-attr]
         self._textual_logs["completion"].extend(completions)  # type: ignore[union-attr]
         for reward_key in rewards_dict:
             reward_values = rewards_dict[reward_key]
             self._textual_logs["rewards"][reward_key].extend(reward_values)  # type: ignore[union-attr]
+        if textual_feedbacks:
+            self._textual_logs["feedback"].extend(textual_feedbacks)
 
     def log_metrics(  # type: ignore[override]
         self,

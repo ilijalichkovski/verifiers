@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from transformers import PreTrainedTokenizerBase
 
 from verifiers import Environment
+from verifiers.types import State
 
 
 class Microbatch(BaseModel):
@@ -38,6 +39,7 @@ class Batch(BaseModel):
     completions: list[Any] = Field(default_factory=list)
     metrics_dict: dict[str, float] = Field(default_factory=dict)
     rewards_dict: dict[str, list[float]] = Field(default_factory=dict)
+    textual_feedbacks: list[str] = Field(default_factory=list)
 
 
 class Orchestrator:
@@ -118,6 +120,64 @@ class Orchestrator:
             filter_by_prompt_length,
             fn_kwargs={"processing_class": processing_class},
         )
+
+    @staticmethod
+    def _normalize_feedback_candidate(candidate: Any) -> list[str]:
+        if candidate is None:
+            return []
+        if isinstance(candidate, str):
+            return [candidate]
+        if isinstance(candidate, (list, tuple, set)):
+            return [str(item) for item in candidate if item not in (None, "")]
+        if isinstance(candidate, dict):
+            lines = []
+            for key, value in candidate.items():
+                if value in (None, ""):
+                    continue
+                lines.append(f"{key}: {value}")
+            return lines
+        return [str(candidate)]
+
+    def _extract_textual_feedback(self, states: list[State]) -> list[str]:
+        feedback_messages: list[str] = []
+        for state in states:
+            parts: list[str] = []
+
+            for key in ("textual_feedback", "feedback"):
+                parts.extend(self._normalize_feedback_candidate(state.get(key)))
+
+            judge_response = state.get("judge_response")
+            parts.extend(self._normalize_feedback_candidate(judge_response))
+
+            info = state.get("info") or {}
+            if isinstance(info, dict):
+                parts.extend(
+                    self._normalize_feedback_candidate(info.get("textual_feedback"))
+                )
+
+            for step in state.get("trajectory", []) or []:
+                extras = step.get("extras") or {}
+                if not isinstance(extras, dict):
+                    continue
+                for key in ("textual_feedback", "feedback", "explanation"):
+                    parts.extend(self._normalize_feedback_candidate(extras.get(key)))
+
+            if not parts:
+                reward_summary = []
+                reward_value = state.get("reward")
+                metrics_value = state.get("metrics")
+                if reward_value is not None:
+                    reward_summary.append(f"reward={reward_value}")
+                if metrics_value:
+                    reward_summary.append(f"metrics={metrics_value}")
+                if not reward_summary:
+                    reward_summary.append("No textual feedback available.")
+                parts.append("; ".join(reward_summary))
+
+            normalized = [str(part).strip() for part in parts if str(part).strip()]
+            feedback_messages.append("\n".join(normalized))
+
+        return feedback_messages
 
     def get_dataset_slice(self, batch_id: int) -> Dataset:
         """Get dataset slice for a given batch id"""
@@ -227,6 +287,8 @@ class Orchestrator:
         )
         self.is_generating = False
         wall_clock_s = time.time() - start_time
+
+        textual_feedbacks = self._extract_textual_feedback(env_results["state"])
 
         # process trajectories horizontally - each step becomes a separate training example
         prompt_ids: list[list[int]] = []
@@ -356,4 +418,5 @@ class Orchestrator:
             completions=env_results["completion"],
             prompts=env_results["prompt"],
             metrics_dict=metrics_dict,
+            textual_feedbacks=textual_feedbacks,
         )

@@ -45,6 +45,7 @@ def print_prompt_completions_sample(
     completions: list[Messages],
     rewards: list[float],
     step: int,
+    feedbacks: list[str] | None = None,
     num_samples: int = 1,
 ) -> None:
     def _attr_or_key(obj, key: str, default=None):
@@ -104,6 +105,9 @@ def print_prompt_completions_sample(
     table.add_column("Prompt", style="bright_yellow")
     table.add_column("Completion", style="bright_green")
     table.add_column("Reward", style="bold cyan", justify="right")
+    include_feedback = bool(feedbacks)
+    if include_feedback:
+        table.add_column("Feedback", style="bright_blue")
 
     reward_values = rewards
     if len(reward_values) < len(prompts):
@@ -118,7 +122,13 @@ def print_prompt_completions_sample(
         formatted_prompt = _format_messages(prompt)
         formatted_completion = _format_messages(completion)
 
-        table.add_row(formatted_prompt, formatted_completion, Text(f"{reward:.2f}"))
+        row = [formatted_prompt, formatted_completion, Text(f"{reward:.2f}")]
+        if include_feedback:
+            feedback_value = ""
+            if feedbacks is not None and i < len(feedbacks):
+                feedback_value = feedbacks[i]
+            row.append(Text(str(feedback_value)))
+        table.add_row(*row)
         if i < samples_to_show - 1:
             table.add_section()
 

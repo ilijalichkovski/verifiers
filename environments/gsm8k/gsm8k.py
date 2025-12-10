@@ -20,9 +20,20 @@ def load_environment(
 
     parser = vf.Parser(extract_fn=extract_boxed_answer)
 
-    def correct_answer_reward_func(parser, completion, answer, **kwargs):
+    def correct_answer_reward_func(parser, completion, answer, state, **kwargs):
         response = parser.parse_answer(completion) or ""
-        return 1.0 if response == answer else 0.0
+        is_correct = response == answer
+
+        # Build textual feedback
+        if not response:
+            feedback = f"No answer extracted. Expected: {answer}"
+        elif is_correct:
+            feedback = f"Correct! Your answer '{response}' matches the expected answer."
+        else:
+            feedback = f"Incorrect. Expected '{answer}' but got '{response}'."
+
+        state["textual_feedback"] = feedback
+        return 1.0 if is_correct else 0.0
 
     rubric = vf.Rubric(
         parser=parser,
