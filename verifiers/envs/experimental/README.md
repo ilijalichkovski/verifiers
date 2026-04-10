@@ -20,4 +20,8 @@ Environment for running custom agent code inside sandboxes. Intercepts the agent
 
 ## RLMEnv
 
-Environment implementing [Recursive Language Models](https://alexzhang13.github.io/blog/2025/rlm/) (RLMs), an inference strategy where language models can decompose and recursively interact with input context of unbounded length through REPL environments.
+Environment implementing Recursive Language Models (RLMs).
+
+## CoworkEnv
+
+`CliAgentEnv` subclass for knowledge-work agents (documents, policies, deliverables). Uploads a lightweight Cowork runner into the sandbox, intercepts its OpenAI-compatible requests, exposes a non-coding tool surface (workspace files, bash, todos, scratch memory, scripted clarifications, plan logging, `finish_task`), and captures logs plus declared artifacts for scoring.

@@ -894,3 +894,4 @@ Newer and more experimental environment classes include:
 - **`RLMEnv`** — implements [Recursive Language Models](https://alexzhang13.github.io/blog/2025/rlm/) for unbounded context processing via REPL-based decomposition and recursive sub-LLM calls
 - **`OpenCodeEnv`** — runs [OpenCode](https://opencode.ai) CLI agents inside sandboxes with API call interception
 - **`OpenCodeRLMEnv`** — extends `OpenCodeEnv` with concurrent sub-LLM handling via the [OC plugin](https://github.com/snimu/oc), routing `subagent`/`llm-subcall` requests through the interception proxy
+- **`CoworkEnv`** — `CliAgentEnv` subclass for white-collar / knowledge-work tasks: uploads and runs a lightweight Cowork runner in the sandbox (workspace files, todos, scratch memory, scripted clarifications, plan logging, `finish_task`) with the same interception pattern as `OpenCodeEnv`, but tuned for non-coding deliverables rather than the OpenCode CLI
